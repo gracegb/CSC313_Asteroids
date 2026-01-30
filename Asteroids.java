@@ -762,9 +762,9 @@ public class Asteroids {
                 rightPressed = true;
                 logKey("pressed", "RIGHT");
             }
-            if (action.equals("F")) {
+            if (action.equals("J")) {
                 firePressed = true;
-                logKey("pressed", "F");
+                logKey("pressed", "J");
             }
         }
         private String action;
@@ -1153,6 +1153,13 @@ public class Asteroids {
 
                 JPanel myPanel = new JPanel();
 
+                // added for game mode selection
+                String[] gameModes = {"Singleplayer", "Multiplayer"};
+                JComboBox<String> gameModeMenu = new JComboBox<String>(gameModes);
+                gameModeMenu.setSelectedIndex(1);
+                gameModeMenu.addActionListener(new GameLevel());
+                myPanel.add(gameModeMenu);
+
                 String[] levels = {"One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"};
                 JComboBox<String> levelMenu = new JComboBox<String>(levels);
                 levelMenu.setSelectedIndex(2);
@@ -1172,6 +1179,13 @@ public class Asteroids {
                 bindKey(keyTarget, "DOWN");
                 bindKey(keyTarget, "LEFT");
                 bindKey(keyTarget, "RIGHT");
+                bindKey(keyTarget, "J");
+
+                // keybindings for multiplayer mode
+                bindKey(keyTarget, "W");
+                bindKey(keyTarget, "A");
+                bindKey(keyTarget, "S");
+                bindKey(keyTarget, "D");
                 bindKey(keyTarget, "F");
 
                 appFrame.getContentPane().add(myPanel, "South");
