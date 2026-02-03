@@ -1,10 +1,12 @@
 // javac Asteroids.java
 // java Asteroids
 
+import java.nio.Buffer;
 import java.util.Vector;
 import java.util.Random;
 
 import java.time.LocalTime;
+import java.time.temporal.ChronoUnit;
 
 import javax.swing.JFrame;
 import javax.swing.JPanel;
@@ -13,18 +15,15 @@ import javax.swing.JComponent;
 import javax.swing.KeyStroke;
 import javax.swing.AbstractAction;
 import javax.swing.JComboBox;
-import javax.swing.SwingUtilities;
 
 import javax.imageio.ImageIO;
 
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 
-import java.awt.Dimension;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.io.InputStream;
 
 import java.awt.Graphics;
 import java.awt.Graphics2D;
@@ -40,7 +39,7 @@ public class Asteroids {
     public static void setup() {
         appFrame = new JFrame("Asteroids");
         XOFFSET = 0;
-        YOFFSET = 0;
+        YOFFSET = 40;
         WINWIDTH = 500;
         WINHEIGHT = 500;
 
@@ -48,13 +47,6 @@ public class Asteroids {
         twoPi = 2.0 * 3.14159265358979;
 
         endgame = false;
-        enemyAlive = false;
-
-        upPressed = false;
-        downPressed = false;
-        leftPressed = false;
-        rightPressed = false;
-        firePressed = false;
 
         p1width = 25;
         p1height = 25;
@@ -83,32 +75,44 @@ public class Asteroids {
         ast2width = 21;
         ast3width = 26;
 
-        background = loadImage("space.png");
-        player = loadImage("player.png");
-        flame1 = loadImage("flameleft.png");
-        flame2 = loadImage("flamecenter.png");
-        flame3 = loadImage("flameright.png");
-        flame4 = loadImage("blueflameleft.png");
-        flame5 = loadImage("blueflamecenter.png");
-        flame6 = loadImage("blueflameright.png");
+        try {
+            background = ImageIO.read(new File("space.png"));
 
-        ast1 = loadImage("ast1.png");
-        ast2 = loadImage("ast2.png");
-        ast3 = loadImage("ast3.png");
+            player = ImageIO.read(new File("player.png"));
+            flame1 = ImageIO.read(new File("flameleft.png"));
+            flame2 = ImageIO.read(new File("flamecenter.png"));
+            flame3 = ImageIO.read(new File("flameright.png"));
+            flame4 = ImageIO.read(new File("blueflameleft.png"));
+            flame5 = ImageIO.read(new File("blueflamecenter.png"));
+            flame6 = ImageIO.read(new File("blueflameright.png"));
 
-        playerBullet = loadImage("playerbullet.png");
-        enemyShip = loadImage("enemy.png");
-        enemyBullet = loadImage("enemybullet.png");
-        exp1 = loadImage("explosion1.png");
-        exp2 = loadImage("explosion2.png");
+            ast1 = ImageIO.read(new File("ast1.png"));
+            ast2 = ImageIO.read(new File("ast2.png"));
+            ast3 = ImageIO.read(new File("ast3.png"));
+
+            playerBullet = ImageIO.read(new File("playerbullet.png"));
+            enemyShip = ImageIO.read(new File("enemy.png"));
+            enemyBullet = ImageIO.read(new File("enemybullet.png"));
+
+            exp1 = ImageIO.read(new File("explosion1.png"));
+            exp2 = ImageIO.read(new File("explosion2.png"));
+        }
+        catch(IOException ioe) {
+            // NOP
+        }
     }
 
     private static class Animate implements Runnable {
         public void run() {
             while (endgame == false) {
-                if (gamePanel != null) {
-                    gamePanel.repaint();
-                }
+                backgroundDraw();
+                asteroidsDraw();
+                explosionsDraw();
+                enemyBulletsDraw();
+                enemyDraw();
+                playerBulletsDraw();
+                playerDraw();
+                flameDraw();
 
                 try {
                     Thread.sleep(32);
@@ -203,7 +207,6 @@ public class Asteroids {
                         - pi / 2.0));
                 p1.screenWrap(XOFFSET, XOFFSET + WINWIDTH,
                         YOFFSET, YOFFSET + WINHEIGHT);
-                logPlayerState();
             }
         }
         private double velocitystep;
@@ -392,7 +395,6 @@ public class Asteroids {
                         for (int j = 0; j < playerBullets.size(); j++) {
                             if (collisionOccurs(asteroids.elementAt(i),
                                     playerBullets.elementAt(j)) == true) {
-                                logCollision("asteroid vs player bullet");
                                 // delete asteroid
                                 // show explosion animation
                                 // replace old asteroid with two new, smaller asteroids
@@ -438,7 +440,6 @@ public class Asteroids {
                     // compare all asteroids to player
                     for (int i = 0; i < asteroids.size(); i++) {
                         if (collisionOccurs(asteroids.elementAt(i), p1) == true) {
-                            logCollision("asteroid vs player");
                             endgame = true;
                             System.out.println("Game Over. You lose!");
                         }
@@ -448,7 +449,6 @@ public class Asteroids {
                         // compare all player bullets to enemy ship
                         for (int i = 0; i < playerBullets.size(); i++) {
                             if (collisionOccurs(playerBullets.elementAt(i), enemy) == true) {
-                                logCollision("player bullet vs enemy");
                                 double posX = enemy.getX();
                                 double posY = enemy.getY();
 
@@ -468,7 +468,6 @@ public class Asteroids {
                         // compare enemy ship to player
                         //TODO
                         if (collisionOccurs(enemy, p1) == true) {
-                            logCollision("enemy vs player");
                             endgame = true;
                             System.out.println("Game Over. You Lose!");
                         }
@@ -476,7 +475,6 @@ public class Asteroids {
                         // compare all enemy bullets to player
                         for (int i = 0; i < enemyBullets.size(); i++) {
                             if (collisionOccurs(enemyBullets.elementAt(i), p1) == true) {
-                                logCollision("enemy bullet vs player");
                                 endgame = true;
                                 System.out.println("Game Over. You Lose!");
                             }
@@ -510,17 +508,10 @@ public class Asteroids {
         Random randomNumbers = new Random(LocalTime.now().getNano());
 
         for (int i = 0; i < level; i++) {
-            ImageObject asteroid = new ImageObject (XOFFSET +
+            asteroids.addElement(new ImageObject (XOFFSET +
                     (double) (randomNumbers.nextInt(WINWIDTH)), YOFFSET +
                     (double) (randomNumbers.nextInt(WINHEIGHT)), ast1width, ast1width,
-                    (double) (randomNumbers.nextInt(360)));
-            int attempts = 0;
-            while (p1 != null && collisionOccurs(asteroid, p1) == true && attempts < 20) {
-                asteroid.moveto(XOFFSET + (double) (randomNumbers.nextInt(WINWIDTH)),
-                        YOFFSET + (double) (randomNumbers.nextInt(WINHEIGHT)));
-                attempts++;
-            }
-            asteroids.addElement(asteroid);
+                    (double) (randomNumbers.nextInt(360))));
             asteroidsTypes.addElement(1);
         }
     }
@@ -569,26 +560,26 @@ public class Asteroids {
         return atop;
     }
 
-    private static void backgroundDraw(Graphics2D g2D) {
-        if (background == null) {
-            return;
-        }
+    private static void backgroundDraw() {
+        Graphics g = appFrame.getGraphics();
+        Graphics2D g2D = (Graphics2D) g;
         g2D.drawImage(background, XOFFSET, YOFFSET, null);
     }
 
-    private static void enemyBulletsDraw(Graphics2D g2D) {
-        if (enemyBullets == null || enemyBullet == null) {
-            return;
-        }
+    private static void enemyBulletsDraw() {
+        Graphics g = appFrame.getGraphics();
+        Graphics2D g2D = (Graphics2D) g;
         for(int i = 0; i < enemyBullets.size(); i++) {
             g2D.drawImage(enemyBullet, (int) (enemyBullets.elementAt(i).getX() + 0.5),
                     (int) (enemyBullets.elementAt(i).getY() + 0.5), null);
         }
     }
 
-    private static void enemyDraw(Graphics2D g2D) {
-        if (Boolean.TRUE.equals(enemyAlive) && enemyShip != null) {
+    private static void enemyDraw() {
+        if (enemyAlive == true) {
             try {
+                Graphics g = appFrame.getGraphics();
+                Graphics2D g2D = (Graphics2D) g;
                 g2D.drawImage(enemyShip, (int) (enemy.getX() + 0.5), (int) (enemy.getY() + 0.5), null);
             }
             catch (java.lang.NullPointerException jlnpe) {
@@ -597,10 +588,9 @@ public class Asteroids {
         }
     }
 
-    private static void playerBulletsDraw(Graphics2D g2D) {
-        if (playerBullets == null || playerBullet == null) {
-            return;
-        }
+    private static void playerBulletsDraw() {
+        Graphics g = appFrame.getGraphics();
+        Graphics2D g2D = (Graphics2D) g;
         try {
             for (int i = 0; i < playerBullets.size(); i ++) {
                 g2D.drawImage(rotateImageObject(playerBullets.elementAt(i)).filter(playerBullet, null),
@@ -613,89 +603,69 @@ public class Asteroids {
         }
     }
 
-    private static void playerDraw(Graphics2D g2D) {
-        if (player == null || p1 == null) {
-            return;
-        }
+    private static void playerDraw() {
+        Graphics g = appFrame.getGraphics();
+        Graphics2D g2D = (Graphics2D) g;
         g2D.drawImage(rotateImageObject(p1).filter(player, null), (int) (p1.getX() + 0.5), (int) (p1.getY() + 0.5), null);
     }
 
-    private static void flameDraw(Graphics2D g2D) {
-        if (flames == null) {
-            return;
-        }
+    private static void flameDraw() {
         if (upPressed == true) {
+            Graphics g = appFrame.getGraphics();
+            Graphics2D g2D = (Graphics2D) g;
             if (flamecount == 1) {
-                if (flame1 != null) {
-                    g2D.drawImage(rotateImageObject(flames).filter(flame1, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
-                }
+                g2D.drawImage(rotateImageObject(flames).filter(flame1, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
                 flamecount = 1 + ((flamecount + 1) % 3);
             }
             else if (flamecount == 2) {
-                if (flame2 != null) {
-                    g2D.drawImage(rotateImageObject(flames).filter(flame2, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
-                }
+                g2D.drawImage(rotateImageObject(flames).filter(flame2, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
                 flamecount = 1 + ((flamecount + 1) % 3);
             }
             else if (flamecount == 3) {
-                if (flame3 != null) {
-                    g2D.drawImage(rotateImageObject(flames).filter(flame3, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
-                }
+                g2D.drawImage(rotateImageObject(flames).filter(flame3, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
                 flamecount = 1 + ((flamecount + 1) % 3);
             }
         }
         if (downPressed == true) {
+            Graphics g = appFrame.getGraphics();
+            Graphics2D g2D = (Graphics2D) g;
             if (flamecount == 1) {
-                if (flame4 != null) {
-                    g2D.drawImage(rotateImageObject(flames).filter(flame4, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
-                }
+                g2D.drawImage(rotateImageObject(flames).filter(flame4, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
                 flamecount = 1 + ((flamecount + 1) % 3);
             }
             else if (flamecount == 2) {
-                if (flame5 != null) {
-                    g2D.drawImage(rotateImageObject(flames).filter(flame5, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
-                }
+                g2D.drawImage(rotateImageObject(flames).filter(flame5, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
                 flamecount = 1 + ((flamecount + 1) % 3);
             }
             else if (flamecount == 3) {
-                if (flame6 != null) {
-                    g2D.drawImage(rotateImageObject(flames).filter(flame6, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
-                }
+                g2D.drawImage(rotateImageObject(flames).filter(flame6, null), (int) (flames.getX() + 0.5), (int) (flames.getY() + 0.5), null);
                 flamecount = 1 + ((flamecount + 1) % 3);
             }
         }
     }
 
-    private static void asteroidsDraw(Graphics2D g2D) {
-        if (asteroids == null || asteroidsTypes == null) {
-            return;
-        }
+    private static void asteroidsDraw() {
+        Graphics g = appFrame.getGraphics();
+        Graphics2D g2D = (Graphics2D) g;
         for (int i = 0; i < asteroids.size(); i++) {
             if (asteroidsTypes.elementAt(i) == 1) {
-                if (ast1 != null) {
-                    g2D.drawImage(spinImageObject(asteroids.elementAt(i)).filter(ast1, null), (int) (asteroids.elementAt(i).getX() + 0.5),
-                            (int) (asteroids.elementAt(i).getY() + 0.5), null);
-                }
+                g2D.drawImage(spinImageObject(asteroids.elementAt(i)).filter(ast1, null), (int) (asteroids.elementAt(i).getX() + 0.5),
+                        (int) (asteroids.elementAt(i).getY() + 0.5), null);
             }
             if (asteroidsTypes.elementAt(i) == 2) {
-                if (ast2 != null) {
-                    g2D.drawImage(spinImageObject(asteroids.elementAt(i)).filter(ast2, null), (int) (asteroids.elementAt(i).getX() + 0.5),
-                            (int) (asteroids.elementAt(i).getY() + 0.5), null);
-                }
+                g2D.drawImage(spinImageObject(asteroids.elementAt(i)).filter(ast2, null), (int) (asteroids.elementAt(i).getX() + 0.5),
+                        (int) (asteroids.elementAt(i).getY() + 0.5), null);
             }
             if (asteroidsTypes.elementAt(i) == 3) {
-                if (ast3 != null) {
-                    g2D.drawImage(spinImageObject(asteroids.elementAt(i)).filter(ast3, null), (int) (asteroids.elementAt(i).getX() + 0.5),
-                            (int) (asteroids.elementAt(i).getY() + 0.5), null);
-                }
+                g2D.drawImage(spinImageObject(asteroids.elementAt(i)).filter(ast3, null), (int) (asteroids.elementAt(i).getX() + 0.5),
+                        (int) (asteroids.elementAt(i).getY() + 0.5), null);
             }
         }
     }
 
-    private static void explosionsDraw(Graphics2D g2D) {
-        if (explosions == null || explosionsTimes == null || exp1 == null || exp2 == null) {
-            return;
-        }
+    private static void explosionsDraw() {
+        Graphics g = appFrame.getGraphics();
+        Graphics2D g2D = (Graphics2D) g;
         for (int i = 0; i < explosions.size(); i++) {
             if (System.currentTimeMillis() - explosionsTimes.elementAt(i) > explosionlifetime) {
                 try {
@@ -722,21 +692,6 @@ public class Asteroids {
         }
     }
 
-    private static class GamePanel extends JPanel {
-        protected void paintComponent(Graphics g) {
-            super.paintComponent(g);
-            Graphics2D g2D = (Graphics2D) g;
-            backgroundDraw(g2D);
-            asteroidsDraw(g2D);
-            explosionsDraw(g2D);
-            enemyBulletsDraw(g2D);
-            enemyDraw(g2D);
-            playerBulletsDraw(g2D);
-            playerDraw(g2D);
-            flameDraw(g2D);
-        }
-    }
-
     private static class KeyPressed extends AbstractAction {
         public KeyPressed() {
             action = "";
@@ -748,23 +703,18 @@ public class Asteroids {
         public void actionPerformed (ActionEvent e) {
             if (action.equals("UP")) {
                 upPressed = true;
-                logKey("pressed", "UP");
             }
             if (action.equals("DOWN")) {
                 downPressed = true;
-                logKey("pressed", "DOWN");
             }
             if (action.equals("LEFT")) {
                 leftPressed = true;
-                logKey("pressed", "LEFT");
             }
             if (action.equals("RIGHT")) {
                 rightPressed = true;
-                logKey("pressed", "RIGHT");
             }
             if (action.equals("J")) {
                 firePressed = true;
-                logKey("pressed", "J");
             }
         }
         private String action;
@@ -782,23 +732,18 @@ public class Asteroids {
         public void actionPerformed (ActionEvent e) {
             if (action.equals("UP")) {
                 upPressed = false;
-                logKey("released", "UP");
             }
             if (action.equals("DOWN")) {
                 downPressed = false;
-                logKey("released", "DOWN");
             }
             if (action.equals("LEFT")) {
                 leftPressed = false;
-                logKey("released", "LEFT");
             }
             if (action.equals("RIGHT")) {
                 rightPressed = false;
-                logKey("released", "RIGHT");
             }
-            if (action.equals("F")) {
+            if (action.equals("J")) {
                 firePressed = false;
-                logKey("released", "F");
             }
         }
         private String action;
@@ -1132,68 +1077,80 @@ public class Asteroids {
         private double comY;
     }
 
-    private static void bindKey (JComponent target, String input) {
-        target.getInputMap(IFW).put(KeyStroke.getKeyStroke("pressed " + input), input + " pressed");
-        target.getActionMap().put(input + " pressed", new KeyPressed(input));
+    private static void bindKey (JPanel myPanel, String input) {
+        myPanel.getInputMap(IFW).put(KeyStroke.getKeyStroke("pressed " + input), input + " pressed");
+        myPanel.getActionMap().put(input + " pressed", new KeyPressed(input));
 
-        target.getInputMap(IFW).put(KeyStroke.getKeyStroke("released " + input), input + " released");
-        target.getActionMap().put(input + " released", new KeyReleased(input));
+        myPanel.getInputMap(IFW).put(KeyStroke.getKeyStroke("released " + input), input + " released");
+        myPanel.getActionMap().put(input + " released", new KeyReleased(input));
     }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(new Runnable() {
-            public void run() {
-                setup();
-                appFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-                appFrame.setResizable(false);
-
-                gamePanel = new GamePanel();
-                gamePanel.setPreferredSize(new Dimension(WINWIDTH, WINHEIGHT));
-                appFrame.getContentPane().add(gamePanel, "Center");
-
-                JPanel myPanel = new JPanel();
-
-                // added for game mode selection
-                String[] gameModes = {"Singleplayer", "Multiplayer"};
-                JComboBox<String> gameModeMenu = new JComboBox<String>(gameModes);
-                gameModeMenu.setSelectedIndex(1);
-                gameModeMenu.addActionListener(new GameLevel());
-                myPanel.add(gameModeMenu);
-
-                String[] levels = {"One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"};
-                JComboBox<String> levelMenu = new JComboBox<String>(levels);
-                levelMenu.setSelectedIndex(2);
-                levelMenu.addActionListener(new GameLevel());
-                myPanel.add(levelMenu);
-
-                JButton newGameButton = new JButton("New Game");
-                newGameButton.addActionListener(new StartGame());
-                myPanel.add(newGameButton);
-
-                JButton quitButton = new JButton("Quit Game");
-                quitButton.addActionListener(new QuitGame());
-                myPanel.add(quitButton);
-
-                JComponent keyTarget = appFrame.getRootPane();
-                bindKey(keyTarget, "UP");
-                bindKey(keyTarget, "DOWN");
-                bindKey(keyTarget, "LEFT");
-                bindKey(keyTarget, "RIGHT");
-                bindKey(keyTarget, "J");
-
-                // keybindings for multiplayer mode
-                bindKey(keyTarget, "W");
-                bindKey(keyTarget, "A");
-                bindKey(keyTarget, "S");
-                bindKey(keyTarget, "D");
-                bindKey(keyTarget, "F");
-
-                appFrame.getContentPane().add(myPanel, "South");
-                appFrame.pack();
-                appFrame.setLocationRelativeTo(null);
-                appFrame.setVisible(true);
+    // HELPER TIME
+    // handleKey(playerId, key, pressed)
+    public static void handleKey(int playerId, int key, boolean pressed) {
+        if (playerId == 1) {
+            if (key == 0) { // UP
+                upPressed = pressed;
             }
-        });
+            else if (key == 1) { // DOWN
+                downPressed = pressed;
+            }
+            else if (key == 2) { // LEFT
+                leftPressed = pressed;
+            }
+            else if (key == 3) { // RIGHT
+                rightPressed = pressed;
+            }
+            else if (key == 4) { // FIRE
+                firePressed = pressed;
+            }
+        }
+    }
+    // updatePlayer(playerId)
+    public static void updatePlayer(int playerId) {
+        // NOP
+    }
+    // drawPlayer(playerId, g2D)
+    // drawFlame(playerId, g2D)
+
+
+
+    public static void main(String[] args) {
+        setup();
+        appFrame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        appFrame.setSize(501, 585);
+
+        JPanel myPanel = new JPanel();
+
+        // Game mode selection combo box
+        String[] gameModes = {"Singleplayer", "Multiplayer"};
+        JComboBox<String> gameModeMenu = new JComboBox<String>(gameModes);
+        gameModeMenu.setSelectedIndex(0);
+        gameModeMenu.addActionListener(new GameLevel());
+        myPanel.add(gameModeMenu);
+
+        String[] levels = {"One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten"};
+        JComboBox<String> levelMenu = new JComboBox<String>(levels);
+        levelMenu.setSelectedIndex(2);
+        levelMenu.addActionListener(new GameLevel());
+        myPanel.add(levelMenu);
+
+        JButton newGameButton = new JButton("New Game");
+        newGameButton.addActionListener(new StartGame());
+        myPanel.add(newGameButton);
+
+        JButton quitButton = new JButton("Quit Game");
+        quitButton.addActionListener(new QuitGame());
+        myPanel.add(quitButton);
+
+        bindKey(myPanel, "UP");
+        bindKey(myPanel, "DOWN");
+        bindKey(myPanel, "LEFT");
+        bindKey(myPanel, "RIGHT");
+        bindKey(myPanel, "J");
+
+        appFrame.getContentPane().add(myPanel, "South");
+        appFrame.setVisible(true);
     }
 
     private static Boolean endgame;
@@ -1266,73 +1223,12 @@ public class Asteroids {
     private static double twoPi;
 
     private static JFrame appFrame;
-    private static GamePanel gamePanel;
 
     private static final int IFW = JComponent.WHEN_IN_FOCUSED_WINDOW;
 
-    private static final boolean DEBUG = true;
-    private static final long PLAYER_LOG_INTERVAL_MS = 200;
-    private static long lastPlayerLogMs = 0;
 
-    private static void logImageLoad(String name, BufferedImage img) {
-        if (DEBUG == false) {
-            return;
-        }
-        System.out.println("[IMG] " + name + " loaded=" + (img != null));
-    }
-
-    private static void logKey(String action, String key) {
-        if (DEBUG == false) {
-            return;
-        }
-        System.out.println("[KEY] " + action + " " + key);
-    }
-
-    private static void logPlayerState() {
-        if (DEBUG == false || p1 == null) {
-            return;
-        }
-        long now = System.currentTimeMillis();
-        if (now - lastPlayerLogMs < PLAYER_LOG_INTERVAL_MS) {
-            return;
-        }
-        lastPlayerLogMs = now;
-        System.out.println("[PLAYER] x=" + p1.getX() + " y=" + p1.getY() + " v=" + p1velocity + " angle=" + p1.getAngle());
-    }
-
-    private static void logCollision(String type) {
-        if (DEBUG == false) {
-            return;
-        }
-        System.out.println("[COLLISION] " + type);
-    }
-
-    private static BufferedImage loadImage(String name) {
-        String resourcePath = "/subDirectory/" + name;
-        try (InputStream stream = Asteroids.class.getResourceAsStream(resourcePath)) {
-            if (stream != null) {
-                BufferedImage img = ImageIO.read(stream);
-                logImageLoad(name, img);
-                return img;
-            }
-        }
-        catch (IOException ioe) {
-            System.out.println("[IMG] load failed: " + name + " (resource) " + ioe.getMessage());
-        }
-
-        File file = new File("subDirectory", name);
-        if (!file.exists()) {
-            file = new File(System.getProperty("user.dir"), "subDirectory/" + name);
-        }
-        try {
-            BufferedImage img = ImageIO.read(file);
-            logImageLoad(name, img);
-            return img;
-        }
-        catch (IOException ioe) {
-            System.out.println("[IMG] load failed: " + name + " (file) " + ioe.getMessage());
-            return null;
-        }
-    }
-
+    // helper method variables
+    private static int playerId;
+    private static int key;
+    private static boolean pressed;
 }
